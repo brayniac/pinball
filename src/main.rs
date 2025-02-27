@@ -119,9 +119,20 @@ impl NetworkInterface {
             // validate the affinity list doesn't contain anything funky
             assert!(affinity.bytes().all(|b| b.is_ascii_digit() || b == b"-"[0] || b == b","[0]));
 
+            for i in 0..5 {
+                if let Ok(mut f) = std::fs::File::options().write(true).truncate(true).create(false).open(format!("/proc/irq/{irq}/smp_affinity_list")) {
+                    if f.write_all(affinity.as_bytes()).is_ok() {
+                        break;
+                    }
+                }
 
-            let mut f = std::fs::File::open(format!("/proc/interrupts/{irq}/cpu_affinity_list")).expect("failed to open cpu affinity list for irq: {irq}");
-            f.write_all(affinity.as_bytes()).expect("failed to set cpu affinity for irq: {irq}");
+                std::thread::sleep(core::time::Duration::from_millis(100));
+
+                if i == 4 {
+                    eprintln!("failed to set irq: {irq} smp affinity list: {affinity}");
+                    std::process::exit(1);
+                }
+            }
         }
     }
 }
